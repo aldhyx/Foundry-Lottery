@@ -38,6 +38,13 @@ contract Raffle is VRFConsumerBaseV2Plus {
   /* Errors */
   error Raffle__SendMoreToEnterRaffle();
   error Raffle__TransferFailed();
+  error Raffle_RaffleNotOpen();
+
+  /* Type declaration */
+  enum RaffleState {
+    OPEN,
+    CALCULATING_WINNER
+  }
 
   /* State variables */
   uint256 private immutable i_entranceFee;
@@ -46,12 +53,13 @@ contract Raffle is VRFConsumerBaseV2Plus {
   address payable[] private s_players; // -> list of diff players who entered the raffle
   uint256 private s_lastTimestamp;
   address private s_recentWinner;
+  RaffleState private s_raffleState;
 
-  /* Chainlink vrf state */
+  /* Chainlink vrf states */
   bytes32 private immutable i_keyHash;
   uint256 private immutable i_subscriptionId;
-  uint16 private constant REQUEST_CONFIRMATIONS = 3;
   uint32 private immutable i_callbackGasLimit;
+  uint16 private constant REQUEST_CONFIRMATIONS = 3;
   uint32 private constant NUM_WORDS = 1;
 
   /* Events */
@@ -71,6 +79,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
     i_keyHash = gasLane;
     i_subscriptionId = subscriptionId;
     i_callbackGasLimit = callbackGasLimit;
+    s_raffleState = RaffleState.OPEN;
   }
 
   function enterRaffle() external payable {
@@ -80,6 +89,10 @@ contract Raffle is VRFConsumerBaseV2Plus {
     // More gas efficient
     if (msg.value >= i_entranceFee) {
       revert Raffle__SendMoreToEnterRaffle();
+    }
+
+    if (s_raffleState != RaffleState.OPEN) {
+      revert Raffle_RaffleNotOpen();
     }
 
     s_players.push(payable(msg.sender)); // update s_players storage
@@ -93,6 +106,8 @@ contract Raffle is VRFConsumerBaseV2Plus {
     if ((block.timestamp - s_lastTimestamp) < i_interval) {
       revert();
     }
+
+    s_raffleState = RaffleState.CALCULATING_WINNER;
 
     VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient
       .RandomWordsRequest({
@@ -116,8 +131,9 @@ contract Raffle is VRFConsumerBaseV2Plus {
   ) internal override {
     uint256 indexOfWinner = randomWords[0] % s_players.length;
     s_recentWinner = s_players[indexOfWinner];
-    (bool success, ) = s_recentWinner.call{value: address(this).balance}("");
+    s_raffleState = RaffleState.OPEN;
 
+    (bool success, ) = s_recentWinner.call{value: address(this).balance}("");
     if (!success) {
       revert Raffle__TransferFailed();
     }
