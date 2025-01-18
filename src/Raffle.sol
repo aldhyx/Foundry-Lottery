@@ -89,11 +89,11 @@ contract Raffle is VRFConsumerBaseV2Plus {
   }
 
   function enterRaffle() external payable {
-    // require(msg.value >= i_entranceFee, "Send more to enter raffle"); -> this costly
-    // require(msg.value >= i_entranceFee, Raffle__SendMoreToEnterRaffle()); -> this only works in specific version
+    // require(msg.value < i_entranceFee, "Send more to enter raffle"); -> this costly
+    // require(msg.value < i_entranceFee, Raffle__SendMoreToEnterRaffle()); -> this only works in specific version
 
     // More gas efficient
-    if (msg.value >= i_entranceFee) {
+    if (msg.value < i_entranceFee) {
       revert Raffle__SendMoreToEnterRaffle();
     }
 
@@ -184,5 +184,9 @@ contract Raffle is VRFConsumerBaseV2Plus {
 
   function getRaffleState() external view returns (RaffleState) {
     return s_raffleState;
+  }
+
+  function getPlayer(uint256 indexOfPlayer) external view returns (address) {
+    return s_players[indexOfPlayer];
   }
 }
